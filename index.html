@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Winnie's Coin Simulation - Visible Draw</title>
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --bag-bg: #dce3e8;
+            --tray-bg: #ffffff;
+            --gold-color: #ffd700;
+            --gold-border: #b8860b;
+            --silver-color: #e0e0e0;
+            --silver-border: #7f8c8d;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            user-select: none;
+        }
+
+        h1 { color: #2c3e50; margin-bottom: 10px; }
+        
+        /* Stats Header */
+        .stats-bar {
+            display: flex;
+            gap: 20px;
+            background: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            font-weight: bold;
+            color: #555;
+        }
+        .stat-value { color: #2980b9; font-size: 1.2em; margin-left: 5px;}
+
+        /* Main Game Area */
+        .game-area {
+            display: flex;
+            gap: 40px;
+            width: 100%;
+            max-width: 900px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        /* Containers */
+        .container-box {
+            border-radius: 15px;
+            padding: 20px;
+            min-height: 300px;
+            width: 350px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: all 0.3s;
+        }
+
+        /* The Bag (Source) */
+        #bag-container {
+            background-color: var(--bag-bg);
+            border: 4px solid #bdc3c7;
+        }
+        #bag-container h2 { color: #2c3e50; margin-top: 0; font-size: 1.2rem; }
+        
+        .coin-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            width: 100%;
+            padding: 10px;
+        }
+
+        /* The Tray (Target) */
+        #tray-container {
+            background-color: var(--tray-bg);
+            border: 4px dashed #bdc3c7;
+            position: relative;
+        }
+        #tray-container.drag-over {
+            border-color: #2980b9;
+            background-color: #eaf2f8;
+        }
+        #tray-container h2 { color: #7f8c8d; margin-top: 0; font-size: 1.2rem; }
+
+        /* The Coin Object */
+        .coin {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.8rem;
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .coin:active { 
+            cursor: grabbing; 
+            box-shadow: 0 8px 12px rgba(0,0,0,0.2); 
+            transform: scale(1.05); 
+            z-index: 10;
+        }
+
+        /* Visible States */
+        .coin.gold {
+            background: radial-gradient(circle at 30% 30%, #fffacd, var(--gold-color));
+            border: 2px solid var(--gold-border);
+            color: #5c4300;
+        }
+        
+        .coin.silver {
+            background: radial-gradient(circle at 30% 30%, #ffffff, var(--silver-color));
+            border: 2px solid var(--silver-border);
+            color: #333;
+        }
+
+        /* State when dropped in tray */
+        .coin.in-tray {
+            cursor: default;
+            animation: landInTray 0.3s ease-out;
+        }
+        
+        @keyframes landInTray {
+             0% { transform: scale(1.1); }
+             100% { transform: scale(1.0); }
+        }
+
+        /* Disabled State (Game Over) */
+        .coin.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            filter: grayscale(50%);
+        }
+
+
+        /* Messages */
+        #status-msg {
+            margin-top: 20px;
+            font-size: 1.2rem;
+            height: 30px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .success { color: #27ae60; }
+        .info { color: #7f8c8d; }
+        .waiting { color: #e67e22; }
+
+        button {
+            margin-top: 30px;
+            padding: 10px 25px;
+            font-size: 1rem;
+            background-color: #34495e;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover { background-color: #2c3e50; }
+
+    </style>
+</head>
+<body>
+
+    <h1>Winnie's Coin Draw</h1>
+    
+    <div class="stats-bar">
+        <div>Remaining in Bag: <span id="count-bag" class="stat-value">10</span></div>
+        <div>Draws Made: <span id="count-draws" class="stat-value">0</span></div>
+    </div>
+
+    <div id="status-msg" class="info">Randomly drag a coin from the bag to the tray.</div>
+
+    <div class="game-area">
+        <div id="bag-container" class="container-box">
+            <h2>The Bag</h2>
+            <div id="bag-grid" class="coin-grid">
+                </div>
+        </div>
+
+        <div id="tray-container" class="container-box" 
+             ondrop="drop(event)" 
+             ondragover="allowDrop(event)"
+             ondragleave="leaveDrop(event)">
+            <h2>The Result Tray</h2>
+            <div id="tray-grid" class="coin-grid">
+                </div>
+        </div>
+    </div>
+
+    <button onclick="initGame()">Reset Simulation</button>
+
+    <script>
+        // Game Config
+        const INITIAL_GOLD = 4;
+        const INITIAL_SILVER = 6;
+        
+        let coins = []; 
+        let draws = 0;
+        let isGameOver = false;
+
+        function initGame() {
+            const bagGrid = document.getElementById('bag-grid');
+            const trayGrid = document.getElementById('tray-grid');
+            
+            // Clear UI
+            bagGrid.innerHTML = '';
+            trayGrid.innerHTML = '';
+            document.getElementById('status-msg').innerText = 'Randomly drag a coin from the bag to the tray.';
+            document.getElementById('status-msg').className = 'info';
+            
+            // Reset Stats
+            draws = 0;
+            isGameOver = false;
+
+            // Generate Coin Data
+            coins = [];
+            for (let i = 0; i < INITIAL_GOLD; i++) coins.push('gold');
+            for (let i = 0; i < INITIAL_SILVER; i++) coins.push('silver');
+            
+            // Shuffle the array (Fisher-Yates Shuffle) - Important so they are mixed visually
+            for (let i = coins.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [coins[i], coins[j]] = [coins[j], coins[i]];
+            }
+
+            // Create DOM elements (Visible immediately)
+            coins.forEach((type, index) => {
+                const coinEl = document.createElement('div');
+                // Add visible class immediately based on type
+                coinEl.classList.add('coin', type);
+                coinEl.innerText = type === 'gold' ? 'GOLD' : 'SILVER';
+                
+                coinEl.setAttribute('draggable', 'true');
+                coinEl.setAttribute('id', `coin-${index}`);
+                coinEl.setAttribute('data-type', type);
+                
+                // Add Drag Events
+                coinEl.addEventListener('dragstart', dragStart);
+                
+                bagGrid.appendChild(coinEl);
+            });
+
+            updateStats();
+        }
+
+        // Drag Event Handlers
+        function dragStart(event) {
+            if (isGameOver) {
+                event.preventDefault();
+                return;
+            }
+            event.dataTransfer.setData("text", event.target.id);
+            event.dataTransfer.effectAllowed = "move";
+             document.getElementById('status-msg').innerText = 'Drop it in the tray...';
+             document.getElementById('status-msg').className = 'waiting';
+        }
+
+        function allowDrop(event) {
+            event.preventDefault();
+            const tray = document.getElementById('tray-container');
+            tray.classList.add('drag-over');
+        }
+
+        function leaveDrop(event) {
+            const tray = document.getElementById('tray-container');
+            tray.classList.remove('drag-over');
+        }
+
+        function drop(event) {
+            event.preventDefault();
+            const tray = document.getElementById('tray-container');
+            tray.classList.remove('drag-over');
+
+            const coinId = event.dataTransfer.getData("text");
+            const coinEl = document.getElementById(coinId);
+
+            if (!coinEl || !coinEl.classList.contains('coin')) return;
+
+            // Move element to Tray
+            document.getElementById('tray-grid').appendChild(coinEl);
+
+            // Disable dragging and mark as landed
+            coinEl.setAttribute('draggable', 'false');
+            coinEl.classList.add('in-tray');
+
+            // Game Logic immediately
+            const type = coinEl.getAttribute('data-type');
+            handleDrawResult(type);
+        }
+
+        function handleDrawResult(type) {
+            draws++;
+            updateStats();
+            const msg = document.getElementById('status-msg');
+
+            if (type === 'gold') {
+                isGameOver = true;
+                msg.innerText = `STOP! A Gold coin was drawn in ${draws} draw(s).`;
+                msg.className = 'success';
+                disableAllCoins();
+            } else {
+                msg.innerText = 'Silver drawn. You must draw again. Pick another.';
+                msg.className = 'info';
+            }
+        }
+
+        function disableAllCoins() {
+            const remainingCoins = document.querySelectorAll('#bag-grid .coin');
+            remainingCoins.forEach(c => {
+                c.setAttribute('draggable', 'false');
+                c.classList.add('disabled');
+            });
+        }
+
+        function updateStats() {
+            // Count children in bag
+            const bagCount = document.getElementById('bag-grid').children.length;
+            document.getElementById('count-bag').innerText = bagCount;
+            document.getElementById('count-draws').innerText = draws;
+        }
+
+        // Initialize on load
+        window.onload = initGame;
+
+    </script>
+</body>
+</html>
